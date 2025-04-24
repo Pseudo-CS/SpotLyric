@@ -14,6 +14,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 import pathlib
+import requests
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -175,20 +177,24 @@ def search_lyrics_translations(song_name, artist_name):
         print(f"Search error: {str(e)}")
         return []
 
-def google_search_lyrics(song_name, artist_name, num_results=10):
-    """Search for lyrics using Google search API"""
+def duckduckgo_search_lyrics(song_name, artist_name, num_results=10):
+    """Search for lyrics using DuckDuckGo"""
     # Check cache first
     cached_results = get_cached_results(song_name, artist_name)
     if cached_results is not None:
         return cached_results
 
     search_query = f"{song_name} {artist_name} translation lyrics"
+    url = f"https://html.duckduckgo.com/html/?q={search_query}"
+    headers = {'User-Agent': 'Mozilla/5.0'}
     
     try:
-        results = list(search(search_query, num_results=num_results))
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
         matches = []
         
-        for url in results:
+        for result in soup.find_all('a', class_='result__url', limit=num_results):
+            url = result['href']
             title = url.split('/')[-1].replace('-', ' ').title()
             matches.append({
                 'url': url,
@@ -201,7 +207,7 @@ def google_search_lyrics(song_name, artist_name, num_results=10):
         return matches
         
     except Exception as e:
-        print(f"Google search error: {str(e)}")
+        print(f"DuckDuckGo search error: {str(e)}")
         return []
 
 @app.get("/", response_class=HTMLResponse)
@@ -269,10 +275,10 @@ async def current_song(token: str, expires_at: str = None):
                 song_name = track["name"]
                 artist_name = track["artists"][0]["name"]
                 
-                # Try Google search first, fall back to SerpAPI if it fails
-                results = google_search_lyrics(song_name, artist_name)
+                # Try DuckDuckGo search first, fall back to SerpAPI if it fails
+                results = duckduckgo_search_lyrics(song_name, artist_name)
                 if not results:
-                    print("Google search failed, trying SerpAPI...")
+                    print("DuckDuckGo search failed, trying SerpAPI...")
                     results = search_lyrics_translations(song_name, artist_name)
                 
                 return {

@@ -1,40 +1,18 @@
-from googlesearch import search
+import requests
+from bs4 import BeautifulSoup
 
-def google_search(query, num_results=10):
-    try:
-        results = search(query, num_results=num_results)
-        print(f"\nTop {num_results} results for '{query}':\n")
-        for i, url in enumerate(results, 1):
-            print(f"{i}. {url}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+def duckduckgo_search(query):
+    url = f"https://html.duckduckgo.com/html/?q={query}"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, 'html.parser')
 
-# Example usage
-query = "latest advancements in AI"
-#google_search(query)
+    results = []
+    for result in soup.find_all('a', class_='result__url', limit=10):
+        results.append(result['href'])
 
-def google_search_lyrics(song_name, artist_name, num_results=10):
-    """Search for lyrics using Google search API"""
+    for i, link in enumerate(results, 1):
+        print(f"{i}. {link}")
 
-    search_query = f"{song_name} {artist_name} translation lyrics"
-    
-    try:
-        results = list(search(search_query, num_results=num_results))
-        matches = []
-        
-        for url in results:
-            title = url.split('/')[-1].replace('-', ' ').title()
-            matches.append({
-                'url': url,
-                'title': title
-            })
-        
-        print(f"Found {len(matches)} results")
-        # Cache the results
-        return matches
-        
-    except Exception as e:
-        print(f"Google search error: {str(e)}")
-        return []
-    
-print(google_search_lyrics("chundari penne", "gopi sundar"))
+# Example
+duckduckgo_search("OpenAI news")
