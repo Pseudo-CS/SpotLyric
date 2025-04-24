@@ -73,7 +73,16 @@ async def login():
 @app.get("/callback")
 async def callback(code: str):
     token_info = sp_oauth.get_access_token(code)
-    return {"token": token_info["access_token"]}
+    return HTMLResponse(f"""
+        <html>
+            <body>
+                <script>
+                    localStorage.setItem('spotify_token', '{token_info["access_token"]}');
+                    window.location.href = '/';
+                </script>
+            </body>
+        </html>
+    """)
 
 @app.get("/current-song")
 async def current_song(token: str):

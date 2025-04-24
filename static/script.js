@@ -1,4 +1,4 @@
-let accessToken = null;
+let accessToken = localStorage.getItem('spotify_token');
 
 document.getElementById('loginButton').addEventListener('click', async () => {
     try {
@@ -10,32 +10,15 @@ document.getElementById('loginButton').addEventListener('click', async () => {
     }
 });
 
-// Check if we have a token in the URL (callback)
-const urlParams = new URLSearchParams(window.location.search);
-const code = urlParams.get('code');
-
-if (code) {
-    getAccessToken(code);
+// Check if we have a token in localStorage
+if (accessToken) {
+    // Hide login section and show player section
+    document.getElementById('loginSection').style.display = 'none';
+    document.getElementById('playerSection').style.display = 'block';
+    
+    // Start polling for current song
+    startPolling();
 }
-
-async function getAccessToken(code) {
-    try {
-        const response = await fetch(`/callback?code=${code}`);
-        const data = await response.json();
-        accessToken = data.token;
-        
-        // Hide login section and show player section
-        document.getElementById('loginSection').style.display = 'none';
-        document.getElementById('playerSection').style.display = 'block';
-        
-        // Start polling for current song
-        startPolling();
-    } catch (error) {
-        console.error('Token error:', error);
-    }
-}
-
-let currentSongId = null;
 
 async function startPolling() {
     // Poll every 5 seconds
