@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
@@ -10,6 +10,7 @@ from langdetect import detect
 from serpapi import GoogleSearch
 import time
 import json
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -102,44 +103,62 @@ def search_lyrics_translations(song_name, artist_name):
         print(f"Search error: {str(e)}")
         return []
 
-def refresh_spotify_token(refresh_token):
-    """Refresh the Spotify access token using the refresh token"""
-    try:
-        token_info = sp_oauth.refresh_access_token(refresh_token)
-        return token_info
-    except Exception as e:
-        print(f"Error refreshing token: {str(e)}")
-        return None
-
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/login")
 async def login():
+    """Redirect to Spotify authorization page"""
     auth_url = sp_oauth.get_authorize_url()
-    return {"auth_url": auth_url}
+    return RedirectResponse(url=auth_url)
 
 @app.get("/callback")
 async def callback(code: str):
-    token_info = sp_oauth.get_access_token(code)
-    # Store both access token and refresh token
-    return HTMLResponse(f"""
-        <html>
-            <body>
-                <script>
-                    localStorage.setItem('spotify_token', '{token_info["access_token"]}');
-                    localStorage.setItem('spotify_refresh_token', '{token_info["refresh_token"]}');
-                    window.location.href = '/';
-                </script>
-            </body>
-        </html>
-    """)
+    """Handle Spotify authorization callback"""
+    try:
+        token_info = sp_oauth.get_access_token(code)
+        if not token_info:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+            
+        # Calculate token expiration time
+        expires_at = datetime.now() + timedelta(seconds=token_info['expires_in'])
+        token_info['expires_at'] = expires_at.timestamp()
+        
+        # Store token info in localStorage
+        return HTMLResponse(f"""
+            <html>
+                <body>
+                    <script>
+                        localStorage.setItem('spotify_token', '{token_info["access_token"]}');
+                        localStorage.setItem('spotify_token_expires_at', '{token_info["expires_at"]}');
+                        window.location.href = '/';
+                    </script>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+def is_token_expired(expires_at):
+    """Check if the token has expired"""
+    if not expires_at:
+        return True
+    return datetime.now().timestamp() > float(expires_at)
 
 @app.get("/current-song")
-async def current_song(token: str, refresh_token: str = None):
+async def current_song(token: str, expires_at: str = None):
+    """Get current playing song and lyrics translations"""
     try:
-        # Try to use the current token first
+        # Check if token is expired
+        if is_token_expired(expires_at):
+            print("Token expired, redirecting to login")
+            return {
+                "error": "Token expired",
+                "message": "Please log in again",
+                "requires_login": True
+            }
+            
         sp = spotipy.Spotify(auth=token)
         
         try:
@@ -160,62 +179,25 @@ async def current_song(token: str, refresh_token: str = None):
             return {"error": "No song currently playing"}
             
         except spotipy.SpotifyException as e:
-            # If token is expired and we have a refresh token, try to refresh it
-            if e.http_status == 401 and refresh_token:
-                print("Token expired, attempting to refresh...")
-                try:
-                    new_token_info = refresh_spotify_token(refresh_token)
-                    
-                    if new_token_info and "access_token" in new_token_info:
-                        print("Token refresh successful")
-                        # Retry with new token
-                        sp = spotipy.Spotify(auth=new_token_info["access_token"])
-                        current = sp.current_playback()
-                        
-                        if current and current["item"]:
-                            track = current["item"]
-                            song_name = track["name"]
-                            artist_name = track["artists"][0]["name"]
-                            
-                            # Search for lyrics translations
-                            results = search_lyrics_translations(song_name, artist_name)
-                            
-                            return {
-                                "song": song_name,
-                                "artist": artist_name,
-                                "lyrics_sources": results,
-                                "new_token": new_token_info["access_token"],  # Send new token to client
-                                "token_expires_in": new_token_info.get("expires_in", 3600)  # Send token expiration time
-                            }
-                        return {"error": "No song currently playing"}
-                    else:
-                        print("Token refresh failed - no new token received")
-                        return {
-                            "error": "Failed to refresh token",
-                            "message": "Please log in again",
-                            "requires_login": True
-                        }
-                except Exception as refresh_error:
-                    print(f"Error during token refresh: {str(refresh_error)}")
-                    return {
-                        "error": "Token refresh failed",
-                        "message": "Please log in again",
-                        "requires_login": True
-                    }
+            if e.http_status == 401:
+                print("Token invalid, redirecting to login")
+                return {
+                    "error": "Invalid token",
+                    "message": "Please log in again",
+                    "requires_login": True
+                }
             else:
                 print(f"Spotify API error: {str(e)}")
                 return {
                     "error": "Spotify API error",
-                    "message": str(e),
-                    "requires_login": e.http_status == 401
+                    "message": str(e)
                 }
                 
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return {
             "error": "Unexpected error",
-            "message": str(e),
-            "requires_login": True
+            "message": str(e)
         }
 
 if __name__ == "__main__":
