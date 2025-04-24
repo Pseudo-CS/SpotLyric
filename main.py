@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 from langdetect import detect
 from serpapi import GoogleSearch
+from googlesearch import search
 import time
 import json
 from datetime import datetime, timedelta
@@ -103,6 +104,39 @@ def search_lyrics_translations(song_name, artist_name):
         print(f"Search error: {str(e)}")
         return []
 
+def google_search_lyrics(song_name, artist_name, num_results=10):
+    """Search for lyrics using Google search API"""
+    search_query = f"{song_name} {artist_name} translation lyrics"
+    sources = load_sources()
+    print(f"Loaded sources: {sources}")
+    
+    try:
+        results = search(search_query, num_results=num_results)
+        matches = []
+        
+        for url in results:
+            print(f"Checking URL: {url}")
+            
+            # Check if URL matches any of our sources
+            for source in sources:
+                if source in url:
+                    print(f"Match found for source: {source}")
+                    title = url.split('/')[-1].replace('-', ' ').title()
+                    
+                    matches.append({
+                        'url': url,
+                        'source': source,
+                        'title': title
+                    })
+                    break
+        
+        print(f"Total matches found: {len(matches)}")
+        return matches
+        
+    except Exception as e:
+        print(f"Google search error: {str(e)}")
+        return []
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -168,8 +202,11 @@ async def current_song(token: str, expires_at: str = None):
                 song_name = track["name"]
                 artist_name = track["artists"][0]["name"]
                 
-                # Search for lyrics translations
-                results = search_lyrics_translations(song_name, artist_name)
+                # Try Google search first, fall back to SerpAPI if it fails
+                results = google_search_lyrics(song_name, artist_name)
+                if not results:
+                    print("Google search failed, trying SerpAPI...")
+                    results = search_lyrics_translations(song_name, artist_name)
                 
                 return {
                     "song": song_name,
