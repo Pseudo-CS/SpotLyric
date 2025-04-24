@@ -163,35 +163,60 @@ async def current_song(token: str, refresh_token: str = None):
             # If token is expired and we have a refresh token, try to refresh it
             if e.http_status == 401 and refresh_token:
                 print("Token expired, attempting to refresh...")
-                new_token_info = refresh_spotify_token(refresh_token)
-                
-                if new_token_info:
-                    # Retry with new token
-                    sp = spotipy.Spotify(auth=new_token_info["access_token"])
-                    current = sp.current_playback()
+                try:
+                    new_token_info = refresh_spotify_token(refresh_token)
                     
-                    if current and current["item"]:
-                        track = current["item"]
-                        song_name = track["name"]
-                        artist_name = track["artists"][0]["name"]
+                    if new_token_info and "access_token" in new_token_info:
+                        print("Token refresh successful")
+                        # Retry with new token
+                        sp = spotipy.Spotify(auth=new_token_info["access_token"])
+                        current = sp.current_playback()
                         
-                        # Search for lyrics translations
-                        results = search_lyrics_translations(song_name, artist_name)
-                        
+                        if current and current["item"]:
+                            track = current["item"]
+                            song_name = track["name"]
+                            artist_name = track["artists"][0]["name"]
+                            
+                            # Search for lyrics translations
+                            results = search_lyrics_translations(song_name, artist_name)
+                            
+                            return {
+                                "song": song_name,
+                                "artist": artist_name,
+                                "lyrics_sources": results,
+                                "new_token": new_token_info["access_token"],  # Send new token to client
+                                "token_expires_in": new_token_info.get("expires_in", 3600)  # Send token expiration time
+                            }
+                        return {"error": "No song currently playing"}
+                    else:
+                        print("Token refresh failed - no new token received")
                         return {
-                            "song": song_name,
-                            "artist": artist_name,
-                            "lyrics_sources": results,
-                            "new_token": new_token_info["access_token"]  # Send new token to client
+                            "error": "Failed to refresh token",
+                            "message": "Please log in again",
+                            "requires_login": True
                         }
-                    return {"error": "No song currently playing"}
-                else:
-                    return {"error": "Failed to refresh token", "requires_login": True}
+                except Exception as refresh_error:
+                    print(f"Error during token refresh: {str(refresh_error)}")
+                    return {
+                        "error": "Token refresh failed",
+                        "message": "Please log in again",
+                        "requires_login": True
+                    }
             else:
-                return {"error": str(e), "requires_login": True}
+                print(f"Spotify API error: {str(e)}")
+                return {
+                    "error": "Spotify API error",
+                    "message": str(e),
+                    "requires_login": e.http_status == 401
+                }
                 
     except Exception as e:
-        return {"error": str(e), "requires_login": True}
+        print(f"Unexpected error: {str(e)}")
+        return {
+            "error": "Unexpected error",
+            "message": str(e),
+            "requires_login": True
+        }
 
 if __name__ == "__main__":
     import uvicorn
