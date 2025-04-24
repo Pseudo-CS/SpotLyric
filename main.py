@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from langdetect import detect
 from serpapi import GoogleSearch
 import time
+import json
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
 
 # SerpAPI credentials
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "6b1c5ada495ea534107a4ac5807851e770c104235fa4e198d8d7f5beeaebeb31")
 
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
@@ -58,6 +59,8 @@ def search_lyrics_translations(song_name, artist_name):
     }
     
     try:
+        # Add a small delay to avoid rate limiting
+        time.sleep(2)
         
         search = GoogleSearch(params)
         results = search.get_dict()
@@ -99,6 +102,15 @@ def search_lyrics_translations(song_name, artist_name):
         print(f"Search error: {str(e)}")
         return []
 
+def refresh_spotify_token(refresh_token):
+    """Refresh the Spotify access token using the refresh token"""
+    try:
+        token_info = sp_oauth.refresh_access_token(refresh_token)
+        return token_info
+    except Exception as e:
+        print(f"Error refreshing token: {str(e)}")
+        return None
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -111,11 +123,13 @@ async def login():
 @app.get("/callback")
 async def callback(code: str):
     token_info = sp_oauth.get_access_token(code)
+    # Store both access token and refresh token
     return HTMLResponse(f"""
         <html>
             <body>
                 <script>
                     localStorage.setItem('spotify_token', '{token_info["access_token"]}');
+                    localStorage.setItem('spotify_refresh_token', '{token_info["refresh_token"]}');
                     window.location.href = '/';
                 </script>
             </body>
@@ -123,27 +137,61 @@ async def callback(code: str):
     """)
 
 @app.get("/current-song")
-async def current_song(token: str):
-    sp = spotipy.Spotify(auth=token)
-    
+async def current_song(token: str, refresh_token: str = None):
     try:
-        current = sp.current_playback()
-        if current and current["item"]:
-            track = current["item"]
-            song_name = track["name"]
-            artist_name = track["artists"][0]["name"]
+        # Try to use the current token first
+        sp = spotipy.Spotify(auth=token)
+        
+        try:
+            current = sp.current_playback()
+            if current and current["item"]:
+                track = current["item"]
+                song_name = track["name"]
+                artist_name = track["artists"][0]["name"]
+                
+                # Search for lyrics translations
+                results = search_lyrics_translations(song_name, artist_name)
+                
+                return {
+                    "song": song_name,
+                    "artist": artist_name,
+                    "lyrics_sources": results
+                }
+            return {"error": "No song currently playing"}
             
-            # Search for lyrics translations
-            results = search_lyrics_translations(song_name, artist_name)
-            
-            return {
-                "song": song_name,
-                "artist": artist_name,
-                "lyrics_sources": results
-            }
-        return {"error": "No song currently playing"}
+        except spotipy.SpotifyException as e:
+            # If token is expired and we have a refresh token, try to refresh it
+            if e.http_status == 401 and refresh_token:
+                print("Token expired, attempting to refresh...")
+                new_token_info = refresh_spotify_token(refresh_token)
+                
+                if new_token_info:
+                    # Retry with new token
+                    sp = spotipy.Spotify(auth=new_token_info["access_token"])
+                    current = sp.current_playback()
+                    
+                    if current and current["item"]:
+                        track = current["item"]
+                        song_name = track["name"]
+                        artist_name = track["artists"][0]["name"]
+                        
+                        # Search for lyrics translations
+                        results = search_lyrics_translations(song_name, artist_name)
+                        
+                        return {
+                            "song": song_name,
+                            "artist": artist_name,
+                            "lyrics_sources": results,
+                            "new_token": new_token_info["access_token"]  # Send new token to client
+                        }
+                    return {"error": "No song currently playing"}
+                else:
+                    return {"error": "Failed to refresh token", "requires_login": True}
+            else:
+                return {"error": str(e), "requires_login": True}
+                
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "requires_login": True}
 
 if __name__ == "__main__":
     import uvicorn
