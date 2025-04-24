@@ -16,7 +16,8 @@ if (accessToken && tokenExpiresAt) {
         // Token is valid, show player section
         document.getElementById('loginSection').style.display = 'none';
         document.getElementById('playerSection').style.display = 'block';
-        startPolling();
+        // Initial update
+        updateCurrentSong();
     } else {
         // Token expired, clear it and show login
         localStorage.removeItem('spotify_token');
@@ -24,13 +25,6 @@ if (accessToken && tokenExpiresAt) {
         document.getElementById('loginSection').style.display = 'block';
         document.getElementById('playerSection').style.display = 'none';
     }
-}
-
-async function startPolling() {
-    // Poll every 5 seconds
-    setInterval(updateCurrentSong, 5000);
-    // Initial update
-    updateCurrentSong();
 }
 
 function updateSourcesList(sources) {
@@ -48,7 +42,6 @@ function updateSourcesList(sources) {
         sourceItem.innerHTML = `
             <a href="${source.url}" target="_blank">
                 <div class="title">${source.title}</div>
-                <div class="source">${source.source}</div>
             </a>
         `;
         sourcesList.appendChild(sourceItem);
