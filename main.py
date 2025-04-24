@@ -22,7 +22,7 @@ templates = Jinja2Templates(directory="templates")
 # Spotify credentials
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = "http://localhost:8000/callback"
+SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
 
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
