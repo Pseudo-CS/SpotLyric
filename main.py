@@ -12,6 +12,8 @@ from googlesearch import search
 import time
 import json
 from datetime import datetime, timedelta
+from typing import Dict, Optional, Tuple
+import pathlib
 
 load_dotenv()
 
@@ -29,6 +31,10 @@ SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
 # SerpAPI credentials
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "6b1c5ada495ea534107a4ac5807851e770c104235fa4e198d8d7f5beeaebeb31")
 
+# Cache configuration
+CACHE_FILE = "search_cache.json"
+CACHE_EXPIRATION = timedelta(days=30)  # 1 month expiration
+
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
     client_id=SPOTIFY_CLIENT_ID,
@@ -36,6 +42,84 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=SPOTIFY_REDIRECT_URI,
     scope="user-read-currently-playing user-read-playback-state"
 )
+
+def load_cache() -> Dict[str, Tuple[list, str]]:
+    """Load cache from file"""
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r') as f:
+                cache_data = json.load(f)
+                # Convert string timestamps back to datetime objects
+                return {
+                    key: (results, datetime.fromisoformat(timestamp))
+                    for key, (results, timestamp) in cache_data.items()
+                }
+    except Exception as e:
+        print(f"Error loading cache: {e}")
+    return {}
+
+def save_cache(cache: Dict[str, Tuple[list, datetime]]):
+    """Save cache to file"""
+    try:
+        # Convert datetime objects to ISO format strings for JSON serialization
+        cache_data = {
+            key: (results, timestamp.isoformat())
+            for key, (results, timestamp) in cache.items()
+        }
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(cache_data, f)
+    except Exception as e:
+        print(f"Error saving cache: {e}")
+
+def get_cache_key(song_name: str, artist_name: str) -> str:
+    """Generate a unique cache key for a song and artist"""
+    return f"{song_name.lower()}_{artist_name.lower()}"
+
+def get_cached_results(song_name: str, artist_name: str) -> Optional[list]:
+    """Get cached results if they exist and haven't expired"""
+    cache = load_cache()
+    cache_key = get_cache_key(song_name, artist_name)
+    
+    if cache_key in cache:
+        results, timestamp = cache[cache_key]
+        if datetime.now() - timestamp < CACHE_EXPIRATION:
+            print(f"Using cached results for {song_name} - {artist_name}")
+            return results
+        else:
+            # Remove expired entry
+            del cache[cache_key]
+            save_cache(cache)
+    return None
+
+def cache_results(song_name: str, artist_name: str, results: list):
+    """Cache search results with current timestamp"""
+    cache = load_cache()
+    cache_key = get_cache_key(song_name, artist_name)
+    cache[cache_key] = (results, datetime.now())
+    save_cache(cache)
+    print(f"Cached results for {song_name} - {artist_name}")
+
+def cleanup_expired_cache():
+    """Remove expired entries from cache"""
+    cache = load_cache()
+    current_time = datetime.now()
+    expired_keys = [
+        key for key, (_, timestamp) in cache.items()
+        if current_time - timestamp >= CACHE_EXPIRATION
+    ]
+    
+    if expired_keys:
+        for key in expired_keys:
+            del cache[key]
+        save_cache(cache)
+        print(f"Cleaned up {len(expired_keys)} expired cache entries")
+
+# Initialize cache file if it doesn't exist
+if not os.path.exists(CACHE_FILE):
+    save_cache({})
+
+# Clean up expired cache entries on startup
+cleanup_expired_cache()
 
 def load_sources():
     """Load the list of sources from sources.txt"""
@@ -47,6 +131,11 @@ def load_sources():
 
 def search_lyrics_translations(song_name, artist_name):
     """Search for lyrics translations using SerpAPI and check against sources"""
+    # Check cache first
+    cached_results = get_cached_results(song_name, artist_name)
+    if cached_results is not None:
+        return cached_results
+
     search_query = f"{song_name} {artist_name} lyrics translation"
     sources = load_sources()
     print(f"Loaded sources: {sources}")
@@ -98,6 +187,8 @@ def search_lyrics_translations(song_name, artist_name):
                     break
         
         print(f"Total matches found: {len(matches)}")
+        # Cache the results
+        cache_results(song_name, artist_name, matches)
         return matches
         
     except Exception as e:
@@ -106,6 +197,11 @@ def search_lyrics_translations(song_name, artist_name):
 
 def google_search_lyrics(song_name, artist_name, num_results=10):
     """Search for lyrics using Google search API"""
+    # Check cache first
+    cached_results = get_cached_results(song_name, artist_name)
+    if cached_results is not None:
+        return cached_results
+
     search_query = f"{song_name} {artist_name} translation lyrics"
     sources = load_sources()
     print(f"Loaded sources: {sources}")
@@ -131,6 +227,8 @@ def google_search_lyrics(song_name, artist_name, num_results=10):
                     break
         
         print(f"Total matches found: {len(matches)}")
+        # Cache the results
+        cache_results(song_name, artist_name, matches)
         return matches
         
     except Exception as e:
