@@ -7,9 +7,8 @@ from spotipy.oauth2 import SpotifyOAuth
 import os
 from dotenv import load_dotenv
 from langdetect import detect
-import requests
-from bs4 import BeautifulSoup
-import re
+from serpapi import GoogleSearch
+import time
 
 load_dotenv()
 
@@ -23,6 +22,9 @@ templates = Jinja2Templates(directory="templates")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
+
+# SerpAPI credentials
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "6b1c5ada495ea534107a4ac5807851e770c104235fa4e198d8d7f5beeaebeb31")
 
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
@@ -41,38 +43,58 @@ def load_sources():
         return []
 
 def search_lyrics_translations(song_name, artist_name):
-    """Search Google for lyrics translations and check against sources"""
+    """Search for lyrics translations using SerpAPI and check against sources"""
     search_query = f"{song_name} {artist_name} lyrics translation"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    sources = load_sources()
+    print(f"Loaded sources: {sources}")
+    
+    params = {
+        "engine": "google",
+        "q": search_query,
+        "api_key": SERPAPI_KEY,
+        "num": 10,  # Number of results to return
+        "gl": "in",  # Country to search from
+        "hl": "en"   # Language of results
     }
     
     try:
-        # Get the list of sources to check for
-        sources = load_sources()
         
-        # Search Google
-        search_url = f"https://www.google.com/search?q={search_query}"
-        response = requests.get(search_url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        search = GoogleSearch(params)
+        results = search.get_dict()
         
-        # Find all search results
-        results = []
-        for result in soup.find_all('div', {'class': 'g'}):
-            link = result.find('a')
-            if link and link.get('href'):
-                url = link['href']
-                # Check if URL matches any of our sources
-                for source in sources:
-                    if source in url:
-                        results.append({
-                            'url': url,
-                            'source': source,
-                            'title': link.text
-                        })
-                        break
+        if "error" in results:
+            print(f"Error from SerpAPI: {results['error']}")
+            return []
+            
+        if "organic_results" not in results:
+            print("No organic results found")
+            return []
+            
+        print(f"Found {len(results['organic_results'])} search results")
+        matches = []
         
-        return results
+        for result in results['organic_results']:
+            url = result.get('link', '')
+            print(f"Checking URL: {url}")
+            
+            # Check if URL matches any of our sources
+            for source in sources:
+                if source in url:
+                    print(f"Match found for source: {source}")
+                    title = result.get('title', '')
+                    if not title:
+                        title = url.split('/')[-1].replace('-', ' ').title()
+                    
+                    matches.append({
+                        'url': url,
+                        'source': source,
+                        'title': title
+                    })
+                    break
+        
+        print(f"Total matches found: {len(matches)}")
+        return matches
+        
     except Exception as e:
         print(f"Search error: {str(e)}")
         return []
