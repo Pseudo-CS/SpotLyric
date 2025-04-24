@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpotLyric - Spotify Lyrics Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SpotLyric</h1>
+            <p>View lyrics for your currently playing Spotify songs</p>
+        </header>
+
+        <div class="login-section" id="loginSection">
+            <button id="loginButton" class="spotify-button">Login with Spotify</button>
+        </div>
+
+        <div class="player-section" id="playerSection" style="display: none;">
+            <div class="song-info">
+                <h2 id="songTitle">No song playing</h2>
+                <p id="artistName"></p>
+            </div>
+
+            <div class="lyrics-container">
+                <div class="lyrics-section">
+                    <h3>Original Lyrics</h3>
+                    <div id="lyrics" class="lyrics-text"></div>
+                </div>
+                <div class="lyrics-section" id="translationSection" style="display: none;">
+                    <h3>Translation</h3>
+                    <div id="translation" class="lyrics-text"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html> 
