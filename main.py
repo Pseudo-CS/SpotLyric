@@ -130,63 +130,43 @@ def load_sources():
         return []
 
 def search_lyrics_translations(song_name, artist_name):
-    """Search for lyrics translations using SerpAPI and check against sources"""
+    """Search for lyrics translations using SerpAPI"""
     # Check cache first
     cached_results = get_cached_results(song_name, artist_name)
     if cached_results is not None:
         return cached_results
 
     search_query = f"{song_name} {artist_name} lyrics translation"
-    sources = load_sources()
-    print(f"Loaded sources: {sources}")
     
     params = {
         "engine": "google",
         "q": search_query,
         "api_key": SERPAPI_KEY,
-        "num": 10,  # Number of results to return
-        "gl": "in",  # Country to search from
-        "hl": "en"   # Language of results
+        "num": 10,
+        "gl": "in",
+        "hl": "en"
     }
     
     try:
-        # Add a small delay to avoid rate limiting
         time.sleep(2)
-        
         search = GoogleSearch(params)
         results = search.get_dict()
         
-        if "error" in results:
-            print(f"Error from SerpAPI: {results['error']}")
+        if "error" in results or "organic_results" not in results:
+            print("No results found")
             return []
             
-        if "organic_results" not in results:
-            print("No organic results found")
-            return []
-            
-        print(f"Found {len(results['organic_results'])} search results")
         matches = []
-        
-        for result in results['organic_results']:
+        for result in results['organic_results'][:10]:  # Limit to first 10 results
             url = result.get('link', '')
-            print(f"Checking URL: {url}")
+            title = result.get('title', '') or url.split('/')[-1].replace('-', ' ').title()
             
-            # Check if URL matches any of our sources
-            for source in sources:
-                if source in url:
-                    print(f"Match found for source: {source}")
-                    title = result.get('title', '')
-                    if not title:
-                        title = url.split('/')[-1].replace('-', ' ').title()
-                    
-                    matches.append({
-                        'url': url,
-                        'source': source,
-                        'title': title
-                    })
-                    break
+            matches.append({
+                'url': url,
+                'title': title
+            })
         
-        print(f"Total matches found: {len(matches)}")
+        print(f"Found {len(matches)} results")
         # Cache the results
         cache_results(song_name, artist_name, matches)
         return matches
@@ -203,30 +183,19 @@ def google_search_lyrics(song_name, artist_name, num_results=10):
         return cached_results
 
     search_query = f"{song_name} {artist_name} translation lyrics"
-    sources = load_sources()
-    print(f"Loaded sources: {sources}")
     
     try:
-        results = search(search_query, num_results=num_results)
+        results = list(search(search_query, num_results=num_results))
         matches = []
         
         for url in results:
-            print(f"Checking URL: {url}")
-            
-            # Check if URL matches any of our sources
-            for source in sources:
-                if source in url:
-                    print(f"Match found for source: {source}")
-                    title = url.split('/')[-1].replace('-', ' ').title()
-                    
-                    matches.append({
-                        'url': url,
-                        'source': source,
-                        'title': title
-                    })
-                    break
+            title = url.split('/')[-1].replace('-', ' ').title()
+            matches.append({
+                'url': url,
+                'title': title
+            })
         
-        print(f"Total matches found: {len(matches)}")
+        print(f"Found {len(matches)} results")
         # Cache the results
         cache_results(song_name, artist_name, matches)
         return matches
