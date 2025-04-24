@@ -27,6 +27,28 @@ async function startPolling() {
     updateCurrentSong();
 }
 
+function updateSourcesList(sources) {
+    const sourcesList = document.getElementById('sourcesList');
+    sourcesList.innerHTML = '';
+    
+    if (sources.length === 0) {
+        sourcesList.innerHTML = '<p class="no-sources">No lyrics sources found</p>';
+        return;
+    }
+    
+    sources.forEach(source => {
+        const sourceItem = document.createElement('div');
+        sourceItem.className = 'source-item';
+        sourceItem.innerHTML = `
+            <a href="${source.url}" target="_blank">
+                <div class="title">${source.title}</div>
+                <div class="source">${source.source}</div>
+            </a>
+        `;
+        sourcesList.appendChild(sourceItem);
+    });
+}
+
 async function updateCurrentSong() {
     if (!accessToken) return;
 
@@ -37,24 +59,16 @@ async function updateCurrentSong() {
         if (data.error) {
             document.getElementById('songTitle').textContent = 'No song playing';
             document.getElementById('artistName').textContent = '';
-            document.getElementById('lyrics').textContent = '';
-            document.getElementById('translationSection').style.display = 'none';
+            updateSourcesList([]);
             return;
         }
 
         // Update song info
         document.getElementById('songTitle').textContent = data.song;
         document.getElementById('artistName').textContent = data.artist;
-        document.getElementById('lyrics').textContent = data.lyrics;
-
-        // Show/hide translation section
-        const translationSection = document.getElementById('translationSection');
-        if (data.translation) {
-            translationSection.style.display = 'block';
-            document.getElementById('translation').textContent = data.translation;
-        } else {
-            translationSection.style.display = 'none';
-        }
+        
+        // Update sources list
+        updateSourcesList(data.lyrics_sources);
     } catch (error) {
         console.error('Update error:', error);
     }

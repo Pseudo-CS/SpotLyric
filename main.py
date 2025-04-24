@@ -6,10 +6,10 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
 from dotenv import load_dotenv
+from langdetect import detect
 import requests
 from bs4 import BeautifulSoup
-from langdetect import detect
-import json
+import re
 
 load_dotenv()
 
@@ -32,34 +32,50 @@ sp_oauth = SpotifyOAuth(
     scope="user-read-currently-playing user-read-playback-state"
 )
 
-def get_lyrics(song_name, artist_name):
-    # Search for lyrics
-    search_url = f"https://www.google.com/search?q={song_name}+{artist_name}+lyrics"
+def load_sources():
+    """Load the list of sources from sources.txt"""
+    try:
+        with open('sources.txt', 'r') as f:
+            return [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        return []
+
+def search_lyrics_translations(song_name, artist_name):
+    """Search Google for lyrics translations and check against sources"""
+    search_query = f"{song_name} {artist_name} lyrics translation"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
+        # Get the list of sources to check for
+        sources = load_sources()
+        
+        # Search Google
+        search_url = f"https://www.google.com/search?q={search_query}"
         response = requests.get(search_url, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Try to find lyrics
-        lyrics_div = soup.find('div', {'class': 'BNeawe tAd8D AP7Wnd'})
-        if lyrics_div:
-            return lyrics_div.text
-        return "Lyrics not found"
+        # Find all search results
+        results = []
+        for result in soup.find_all('div', {'class': 'g'}):
+            link = result.find('a')
+            if link and link.get('href'):
+                url = link['href']
+                # Check if URL matches any of our sources
+                for source in sources:
+                    if source in url:
+                        results.append({
+                            'url': url,
+                            'source': source,
+                            'title': link.text
+                        })
+                        break
+        
+        return results
     except Exception as e:
-        return f"Error fetching lyrics: {str(e)}"
-
-def get_translation(text, target_lang="en"):
-    # Simple translation using Google Translate
-    url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={text}"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        return data[0][0][0]
-    except Exception as e:
-        return f"Error translating: {str(e)}"
+        print(f"Search error: {str(e)}")
+        return []
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -95,27 +111,13 @@ async def current_song(token: str):
             song_name = track["name"]
             artist_name = track["artists"][0]["name"]
             
-            # Get lyrics
-            lyrics = get_lyrics(song_name, artist_name)
-            
-            # Detect language
-            try:
-                language = detect(lyrics)
-            except:
-                language = "unknown"
-            
-            # If not English, get translation
-            if language != "en" and language != "unknown":
-                translation = get_translation(lyrics)
-            else:
-                translation = None
+            # Search for lyrics translations
+            results = search_lyrics_translations(song_name, artist_name)
             
             return {
                 "song": song_name,
                 "artist": artist_name,
-                "lyrics": lyrics,
-                "language": language,
-                "translation": translation
+                "lyrics_sources": results
             }
         return {"error": "No song currently playing"}
     except Exception as e:

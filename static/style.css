@@ -73,38 +73,52 @@ header p {
     color: #b3b3b3;
 }
 
-.lyrics-container {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
+.sources-container {
+    background-color: #282828;
+    border-radius: 8px;
+    padding: 1.5rem;
 }
 
-.lyrics-section {
-    flex: 1;
-    min-width: 300px;
-}
-
-.lyrics-section h3 {
+.sources-container h3 {
     color: #1DB954;
     margin-bottom: 1rem;
 }
 
-.lyrics-text {
-    background-color: #282828;
-    padding: 1.5rem;
-    border-radius: 8px;
-    white-space: pre-line;
-    line-height: 1.8;
-    max-height: 500px;
-    overflow-y: auto;
+.sources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.source-item {
+    background-color: #181818;
+    padding: 1rem;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.source-item:hover {
+    background-color: #333333;
+}
+
+.source-item a {
+    color: #ffffff;
+    text-decoration: none;
+    display: block;
+}
+
+.source-item .title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.source-item .source {
+    color: #b3b3b3;
+    font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {
     .container {
         padding: 1rem;
-    }
-    
-    .lyrics-container {
-        flex-direction: column;
     }
 } 
