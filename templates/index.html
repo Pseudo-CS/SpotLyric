@@ -28,49 +28,67 @@
         .bookmark-btn.bookmarked:hover {
             color: #ffca2c;
         }
+        .current-song-card {
+            background-color: #f8f9fa;
+            border: none;
+            border-radius: 10px;
+        }
+        .spotify-button {
+            background-color: #1DB954;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .spotify-button:hover {
+            background-color: #1ed760;
+            transform: scale(1.05);
+        }
+        .update-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        .update-button:hover {
+            background-color: #5a6268;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
+    <div class="container mt-4">
+        <header class="text-center mb-4">
             <h1>SpotLyric</h1>
-            <p>View lyrics for your currently playing Spotify songs</p>
+            <p class="lead">View lyrics for your currently playing Spotify songs</p>
         </header>
 
-        <div class="login-section" id="loginSection">
+        <div class="login-section text-center mb-4" id="loginSection">
             <button id="loginButton" class="spotify-button">Login with Spotify</button>
         </div>
 
         <div class="player-section" id="playerSection" style="display: none;">
-            <div class="song-info">
-                <h2 id="songTitle">No song playing</h2>
-                <p id="artistName"></p>
-                <button id="updateButton" class="update-button" onclick="updateCurrentSong()">Update Song</button>
-            </div>
-
-            <div class="sources-container" id="sourcesContainer">
-                <h3>Available Lyrics Sources</h3>
-                <div id="sourcesList" class="sources-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="container mt-4">
-        <h1 class="mb-4">SpotLyric</h1>
-        <div id="current-song" class="mb-4">
-            <div class="card">
+            <div class="current-song-card card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Current Song</h5>
                     <p class="card-text" id="song-info">Not playing</p>
+                    <button id="updateButton" class="update-button" onclick="updateCurrentSong()">Update Song</button>
+                </div>
+            </div>
+
+            <div class="sources-container">
+                <h3 class="mb-3">Available Lyrics Sources</h3>
+                <div id="lyrics-results" class="sources-list">
+                    <!-- Results will be populated here -->
                 </div>
             </div>
         </div>
-        <div id="lyrics-results">
-            <!-- Results will be populated here -->
-        </div>
     </div>
 
-    <script src="/static/script.js"></script>
     <script>
         let currentSong = null;
         let currentArtist = null;
@@ -126,7 +144,7 @@
                         resultsDiv.appendChild(card);
                     });
                 } else {
-                    resultsDiv.innerHTML = '<p>No results found</p>';
+                    resultsDiv.innerHTML = '<p class="text-center">No results found</p>';
                 }
             } catch (error) {
                 console.error('Error:', error);
