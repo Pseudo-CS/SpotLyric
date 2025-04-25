@@ -263,7 +263,8 @@ def is_token_expired(expires_at):
     """Check if the token has expired"""
     if not expires_at:
         return True
-    return datetime.now().timestamp() > float(expires_at)
+    # Add a 60-second buffer to prevent edge cases
+    return datetime.now().timestamp() > (float(expires_at) - 60)
 
 @app.post("/toggle-bookmark")
 async def toggle_bookmark(song_name: str, artist_name: str, url: str):
@@ -294,7 +295,8 @@ async def current_song(token: str, expires_at: str = None):
             return {
                 "error": "Token expired",
                 "message": "Please log in again",
-                "requires_login": True
+                "requires_login": True,
+                "redirect_url": "/login"
             }
             
         sp = spotipy.Spotify(auth=token)
@@ -327,7 +329,8 @@ async def current_song(token: str, expires_at: str = None):
                 return {
                     "error": "Invalid token",
                     "message": "Please log in again",
-                    "requires_login": True
+                    "requires_login": True,
+                    "redirect_url": "/login"
                 }
             else:
                 print(f"Spotify API error: {str(e)}")

@@ -58,30 +58,32 @@
             background-color: #5a6268;
             transform: scale(1.05);
         }
+        .error-message {
+            color: #dc3545;
+            margin-top: 1rem;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <header class="text-center mb-4">
+    <div class="container">
+        <header>
             <h1>SpotLyric</h1>
-            <p class="lead">View lyrics for your currently playing Spotify songs</p>
+            <p>View lyrics for your currently playing Spotify songs</p>
         </header>
 
-        <div class="login-section text-center mb-4" id="loginSection">
-            <button id="loginButton" class="spotify-button">Login with Spotify</button>
+        <div class="login-section" id="loginSection">
+            <button id="loginButton" class="spotify-button" onclick="redirectToLogin()">Login with Spotify</button>
         </div>
 
         <div class="player-section" id="playerSection" style="display: none;">
-            <div class="current-song-card card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Current Song</h5>
-                    <p class="card-text" id="song-info">Not playing</p>
-                    <button id="updateButton" class="update-button" onclick="updateCurrentSong()">Update Song</button>
-                </div>
+            <div class="song-info">
+                <h2 id="songTitle">No song playing</h2>
+                <p id="artistName"></p>
+                <button id="updateButton" class="update-button" onclick="updateCurrentSong()">Update Song</button>
             </div>
 
-            <div class="sources-container">
-                <h3 class="mb-3">Available Lyrics Sources</h3>
+            <div class="sources-container" id="sourcesContainer">
+                <h3>Available Lyrics Sources</h3>
                 <div id="lyrics-results" class="sources-list">
                     <!-- Results will be populated here -->
                 </div>
@@ -93,12 +95,35 @@
         let currentSong = null;
         let currentArtist = null;
 
+        function redirectToLogin() {
+            window.location.href = '/login';
+        }
+
+        function checkTokenExpiration() {
+            const expiresAt = localStorage.getItem('spotify_token_expires_at');
+            if (!expiresAt) {
+                return false;
+            }
+            // Add a 60-second buffer to prevent edge cases
+            return Date.now() / 1000 < (parseFloat(expiresAt) - 60);
+        }
+
+        function handleLoginRequired(redirectUrl) {
+            localStorage.removeItem('spotify_token');
+            localStorage.removeItem('spotify_token_expires_at');
+            document.getElementById('playerSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
+            }
+        }
+
         async function updateCurrentSong() {
             const token = localStorage.getItem('spotify_token');
             const expiresAt = localStorage.getItem('spotify_token_expires_at');
             
-            if (!token) {
-                window.location.href = '/login';
+            if (!token || !checkTokenExpiration()) {
+                handleLoginRequired('/login');
                 return;
             }
 
@@ -108,16 +133,17 @@
 
                 if (data.error) {
                     if (data.requires_login) {
-                        window.location.href = '/login';
+                        handleLoginRequired(data.redirect_url);
                         return;
                     }
-                    document.getElementById('song-info').textContent = data.error;
+                    document.getElementById('songTitle').textContent = data.error;
                     return;
                 }
 
                 currentSong = data.song;
                 currentArtist = data.artist;
-                document.getElementById('song-info').textContent = `${data.song} - ${data.artist}`;
+                document.getElementById('songTitle').textContent = data.song;
+                document.getElementById('artistName').textContent = data.artist;
 
                 // Display results
                 const resultsDiv = document.getElementById('lyrics-results');
@@ -144,7 +170,7 @@
                         resultsDiv.appendChild(card);
                     });
                 } else {
-                    resultsDiv.innerHTML = '<p class="text-center">No results found</p>';
+                    resultsDiv.innerHTML = '<p>No results found</p>';
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -181,9 +207,15 @@
             }
         }
 
-        // Update every 5 seconds
-        setInterval(updateCurrentSong, 5000);
-        updateCurrentSong();
+        // Check token status on page load
+        if (checkTokenExpiration()) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('playerSection').style.display = 'block';
+            updateCurrentSong();
+        } else {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('playerSection').style.display = 'none';
+        }
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
 </body>
