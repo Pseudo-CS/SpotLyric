@@ -16,6 +16,7 @@ from typing import Dict, Optional, Tuple
 import pathlib
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import unquote, urlparse
 
 load_dotenv()
 
@@ -194,12 +195,25 @@ def duckduckgo_search_lyrics(song_name, artist_name, num_results=10):
         matches = []
         
         for result in soup.find_all('a', class_='result__url', limit=num_results):
-            url = result['href']
-            title = url.split('/')[-1].replace('-', ' ').title()
-            matches.append({
-                'url': url,
-                'title': title
-            })
+            redirect_url = result['href']
+            if redirect_url.startswith('//duckduckgo.com/l/'):
+                # Extract the actual URL from the redirect
+                query_params = urlparse(redirect_url).query
+                for param in query_params.split('&'):
+                    if param.startswith('uddg='):
+                        actual_url = unquote(param[5:])
+                        title = actual_url.split('/')[-1].replace('-', ' ').title()
+                        matches.append({
+                            'url': actual_url,
+                            'title': title
+                        })
+                        break
+            else:
+                title = redirect_url.split('/')[-1].replace('-', ' ').title()
+                matches.append({
+                    'url': redirect_url,
+                    'title': title
+                })
         
         print(f"Found {len(matches)} results")
         # Cache the results
