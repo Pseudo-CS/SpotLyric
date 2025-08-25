@@ -6,17 +6,14 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
 from dotenv import load_dotenv
-from langdetect import detect
 from serpapi import GoogleSearch
-from googlesearch import search
 import time
-import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
-import pathlib
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import unquote, urlparse
+
+from cache_utils import (
+    load_cache, save_cache, get_cache_key, get_cached_results, cache_results, cleanup_expired_cache
+)
 
 load_dotenv()
 
@@ -29,14 +26,11 @@ templates = Jinja2Templates(directory="templates")
 # Spotify credentials
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+#SPOTIFY_REDIRECT_URI = "http://127.0.0.1:3000/callback"
 SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
 
 # SerpAPI credentials
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "6b1c5ada495ea534107a4ac5807851e770c104235fa4e198d8d7f5beeaebeb31")
-
-# Cache configuration
-CACHE_FILE = "search_cache.json"
-CACHE_EXPIRATION = timedelta(days=30)  # 1 month expiration
 
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
@@ -46,83 +40,6 @@ sp_oauth = SpotifyOAuth(
     scope="user-read-currently-playing user-read-playback-state"
 )
 
-def load_cache() -> Dict[str, Tuple[list, datetime, dict]]:
-    """Load cache from file"""
-    try:
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, 'r') as f:
-                cache_data = json.load(f)
-                # Convert string timestamps back to datetime objects
-                return {
-                    key: (results, datetime.fromisoformat(timestamp), bookmarks)
-                    for key, (results, timestamp, bookmarks) in cache_data.items()
-                }
-    except Exception as e:
-        print(f"Error loading cache: {e}")
-    return {}
-
-def save_cache(cache: Dict[str, Tuple[list, datetime, dict]]):
-    """Save cache to file"""
-    try:
-        # Convert datetime objects to ISO format strings for JSON serialization
-        cache_data = {
-            key: (results, timestamp.isoformat(), bookmarks)
-            for key, (results, timestamp, bookmarks) in cache.items()
-        }
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(cache_data, f)
-    except Exception as e:
-        print(f"Error saving cache: {e}")
-
-def get_cache_key(song_name: str, artist_name: str) -> str:
-    """Generate a unique cache key for a song and artist"""
-    return f"{song_name.lower()}_{artist_name.lower()}"
-
-def get_cached_results(song_name: str, artist_name: str) -> Optional[list]:
-    """Get cached results if they exist and haven't expired"""
-    cache = load_cache()
-    cache_key = get_cache_key(song_name, artist_name)
-    
-    if cache_key in cache:
-        results, timestamp, bookmarks = cache[cache_key]
-        if datetime.now() - timestamp < CACHE_EXPIRATION:
-            print(f"Using cached results for {song_name} - {artist_name}")
-            return results, bookmarks
-        else:
-            # Remove expired entry
-            del cache[cache_key]
-            save_cache(cache)
-    return None, {}
-
-def cache_results(song_name: str, artist_name: str, results: list, bookmarks: dict = None):
-    """Cache search results with current timestamp and bookmarks"""
-    cache = load_cache()
-    cache_key = get_cache_key(song_name, artist_name)
-    cache[cache_key] = (results, datetime.now(), bookmarks or {})
-    save_cache(cache)
-    print(f"Cached results for {song_name} - {artist_name}")
-
-def cleanup_expired_cache():
-    """Remove expired entries from cache"""
-    cache = load_cache()
-    current_time = datetime.now()
-    expired_keys = [
-        key for key, (_, timestamp) in cache.items()
-        if current_time - timestamp >= CACHE_EXPIRATION
-    ]
-    
-    if expired_keys:
-        for key in expired_keys:
-            del cache[key]
-        save_cache(cache)
-        print(f"Cleaned up {len(expired_keys)} expired cache entries")
-
-# Initialize cache file if it doesn't exist
-if not os.path.exists(CACHE_FILE):
-    save_cache({})
-
-# Clean up expired cache entries on startup
-cleanup_expired_cache()
 
 def load_sources():
     """Load the list of sources from sources.txt"""
@@ -135,9 +52,9 @@ def load_sources():
 def search_lyrics_translations(song_name, artist_name):
     """Search for lyrics translations using SerpAPI"""
     # Check cache first
-    cached_results = get_cached_results(song_name, artist_name)
+    cached_results, bookmarks = get_cached_results(song_name, artist_name)
     if cached_results is not None:
-        return cached_results
+        return cached_results, bookmarks, True  # True indicates cached results
 
     search_query = f"{song_name} {artist_name} lyrics translation"
     
@@ -157,7 +74,7 @@ def search_lyrics_translations(song_name, artist_name):
         
         if "error" in results or "organic_results" not in results:
             print("No results found")
-            return []
+            return [], {}, False
             
         matches = []
         for result in results['organic_results'][:10]:  # Limit to first 10 results
@@ -169,58 +86,15 @@ def search_lyrics_translations(song_name, artist_name):
                 'title': title
             })
         
-        print(f"Found {len(matches)} results")
-        # Cache the results
-        cache_results(song_name, artist_name, matches)
-        return matches
+        print(f"Found {len(matches)} results using SerpAPI")
+        # Cache the results with empty bookmarks dict
+        cache_results(song_name, artist_name, matches, {})
+        return matches, {}, False  # False indicates fresh results
         
     except Exception as e:
         print(f"Search error: {str(e)}")
-        return []
+        return [], {}, False
 
-def duckduckgo_search_lyrics(song_name, artist_name, num_results=10):
-    """Search for lyrics using DuckDuckGo"""
-    # Check cache first
-    cached_results, bookmarks = get_cached_results(song_name, artist_name)
-    if cached_results is not None:
-        return cached_results, bookmarks
-
-    search_query = f"{song_name} {artist_name} translation lyrics"
-    url = f"https://html.duckduckgo.com/html/?q={search_query}"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    
-    try:
-        res = requests.get(url, headers=headers)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        matches = []
-        
-        for result in soup.find_all('a', class_='result__url', limit=num_results):
-            redirect_url = result['href']
-            if redirect_url.startswith('//duckduckgo.com/l/'):
-                # Extract the actual URL from the redirect
-                query_params = urlparse(redirect_url).query
-                for param in query_params.split('&'):
-                    if param.startswith('uddg='):
-                        actual_url = unquote(param[5:])
-                        matches.append({
-                            'url': actual_url,
-                            'bookmarked': False
-                        })
-                        break
-            else:
-                matches.append({
-                    'url': redirect_url,
-                    'bookmarked': False
-                })
-        
-        print(f"Found {len(matches)} results")
-        # Cache the results with empty bookmarks dict
-        cache_results(song_name, artist_name, matches, {})
-        return matches, {}
-        
-    except Exception as e:
-        print(f"DuckDuckGo search error: {str(e)}")
-        return [], {}
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -267,9 +141,17 @@ def is_token_expired(expires_at):
     return datetime.now().timestamp() > (float(expires_at) - 60)
 
 @app.post("/toggle-bookmark")
-async def toggle_bookmark(song_name: str, artist_name: str, url: str):
+async def toggle_bookmark(request: Request):
     """Handle toggling bookmark for a search result"""
     try:
+        data = await request.json()
+        song_name = data.get("song_name")
+        artist_name = data.get("artist_name")
+        url = data.get("url")
+        
+        if not all([song_name, artist_name, url]):
+            return {"success": False, "error": "Missing required parameters"}
+        
         cache = load_cache()
         cache_key = get_cache_key(song_name, artist_name)
         
@@ -308,18 +190,15 @@ async def current_song(token: str, expires_at: str = None):
                 song_name = track["name"]
                 artist_name = track["artists"][0]["name"]
                 
-                # Try DuckDuckGo search first, fall back to SerpAPI if it fails
-                results, bookmarks = duckduckgo_search_lyrics(song_name, artist_name)
-                if not results:
-                    print("DuckDuckGo search failed, trying SerpAPI...")
-                    results = search_lyrics_translations(song_name, artist_name)
-                    bookmarks = {}
+                # Use SerpAPI to search for lyrics
+                results, bookmarks, is_cached = search_lyrics_translations(song_name, artist_name)
                 
                 return {
                     "song": song_name,
                     "artist": artist_name,
                     "lyrics_sources": results,
-                    "bookmarks": bookmarks
+                    "bookmarks": bookmarks,
+                    "is_cached": is_cached
                 }
             return {"error": "No song currently playing"}
             
@@ -348,4 +227,8 @@ async def current_song(token: str, expires_at: str = None):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=3000
+    ) 

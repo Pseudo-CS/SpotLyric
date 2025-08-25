@@ -7,102 +7,323 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>SpotLyric - Spotify Lyrics Viewer</title>
-    <link rel="stylesheet" href="/static/style.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
+        :root {
+            --spotify-green: #1DB954;
+            --spotify-green-hover: #1ed760;
+            --spotify-black: #191414;
+            --spotify-dark-gray: #121212;
+            --spotify-gray: #282828;
+            --spotify-light-gray: #404040;
+            --spotify-text: #ffffff;
+            --spotify-text-secondary: #b3b3b3;
+            --spotify-accent: #1f2937;
+            --bookmark-gold: #fbbf24;
+            --bookmark-gold-hover: #f59e0b;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--spotify-dark-gray) 0%, var(--spotify-black) 100%);
+            color: var(--spotify-text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, var(--spotify-green), var(--spotify-green-hover));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--spotify-text-secondary);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .login-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .player-section {
+            background: rgba(40, 40, 40, 0.6);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .song-info {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(25, 20, 20, 0.5);
+            border-radius: 15px;
+            border: 1px solid rgba(29, 185, 84, 0.2);
+        }
+
+        .song-info h2 {
+            color: var(--spotify-text);
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .song-info p {
+            color: var(--spotify-text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .sources-container {
+            margin-top: 2rem;
+        }
+
+        .sources-container h3 {
+            color: var(--spotify-text);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .cache-indicator {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(29, 185, 84, 0.2);
+            color: var(--spotify-green);
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-left: 0.5rem;
+            border: 1px solid rgba(29, 185, 84, 0.3);
+        }
+
+        .cache-indicator i {
+            margin-right: 0.3rem;
+            font-size: 0.9rem;
+        }
+
         .result-card {
+            background: rgba(64, 64, 64, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             margin-bottom: 1rem;
             transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
         }
+
         .result-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(29, 185, 84, 0.2);
+            border-color: rgba(29, 185, 84, 0.3);
         }
+
+        .result-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .result-card a {
+            color: var(--spotify-text);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1.1rem;
+            transition: color 0.3s ease;
+        }
+
+        .result-card a:hover {
+            color: var(--spotify-green-hover);
+        }
+
         .bookmark-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--spotify-text-secondary);
             cursor: pointer;
-            transition: all 0.2s ease;
-            padding: 0.5rem;
+            transition: all 0.3s ease;
+            padding: 0.6rem;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 40px;
-            min-height: 40px;
+            min-width: 42px;
+            min-height: 42px;
         }
+
         .bookmark-btn:hover {
             transform: scale(1.1);
-            background-color: rgba(255, 255, 255, 0.1);
+            background: rgba(251, 191, 36, 0.2);
+            border-color: var(--bookmark-gold);
+            color: var(--bookmark-gold);
         }
+
         .bookmark-btn.bookmarked {
-            color: #ffc107;
+            background: rgba(251, 191, 36, 0.2);
+            border-color: var(--bookmark-gold);
+            color: var(--bookmark-gold);
         }
+
         .bookmark-btn.bookmarked:hover {
-            color: #ffca2c;
+            background: rgba(251, 191, 36, 0.3);
+            color: var(--bookmark-gold-hover);
+            transform: scale(1.15);
         }
-        .current-song-card {
-            background-color: #f8f9fa;
-            border: none;
-            border-radius: 10px;
-        }
+
         .spotify-button {
-            background-color: #1DB954;
+            background: linear-gradient(45deg, var(--spotify-green), var(--spotify-green-hover));
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
             transition: all 0.3s ease;
             touch-action: manipulation;
+            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+
         .spotify-button:hover {
-            background-color: #1ed760;
-            transform: scale(1.05);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+            background: linear-gradient(45deg, var(--spotify-green-hover), var(--spotify-green));
         }
+
         .update-button {
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
+            background: rgba(64, 64, 64, 0.8);
+            color: var(--spotify-text);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.6rem 1.5rem;
+            border-radius: 25px;
             transition: all 0.3s ease;
             touch-action: manipulation;
+            font-weight: 500;
         }
+
         .update-button:hover {
-            background-color: #5a6268;
-            transform: scale(1.05);
+            background: rgba(64, 64, 64, 1);
+            border-color: var(--spotify-green);
+            color: var(--spotify-green);
+            transform: translateY(-1px);
         }
+
         .error-message {
-            color: #dc3545;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 1rem;
+            border-radius: 10px;
             margin-top: 1rem;
+            text-align: center;
         }
+
+        .no-results {
+            text-align: center;
+            color: var(--spotify-text-secondary);
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        /* Mobile responsiveness */
         @media (max-width: 768px) {
-            .bookmark-btn {
-                min-width: 36px;
-                min-height: 36px;
+            .container {
+                padding: 1rem 0.5rem;
             }
+            
+            header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .player-section {
+                padding: 1.5rem;
+                border-radius: 15px;
+            }
+            
+            .bookmark-btn {
+                min-width: 38px;
+                min-height: 38px;
+            }
+            
+            .spotify-button {
+                padding: 0.8rem 1.5rem;
+                font-size: 1rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--spotify-green);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Smooth fade-in animation */
+        .fade-in {
+            animation: fadeIn 0.6s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>SpotLyric</h1>
+            <h1><i class="bi bi-music-note-beamed me-2"></i>SpotLyric</h1>
             <p>View lyrics for your currently playing Spotify songs</p>
         </header>
 
         <div class="login-section" id="loginSection">
-            <button id="loginButton" class="spotify-button" onclick="redirectToLogin()">Login with Spotify</button>
+            <button id="loginButton" class="spotify-button" onclick="redirectToLogin()">
+                <i class="bi bi-spotify me-2"></i>Login with Spotify
+            </button>
         </div>
 
-        <div class="player-section" id="playerSection" style="display: none;">
+        <div class="player-section fade-in" id="playerSection" style="display: none;">
             <div class="song-info">
                 <h2 id="songTitle">No song playing</h2>
                 <p id="artistName"></p>
-                <button id="updateButton" class="update-button" onclick="updateCurrentSong()">Update Song</button>
+                <button id="updateButton" class="update-button" onclick="updateCurrentSong()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Update Song
+                </button>
             </div>
 
             <div class="sources-container" id="sourcesContainer">
-                <h3>Available Lyrics Sources</h3>
+                <h3><i class="bi bi-music-note-list me-2"></i>Available Lyrics Sources</h3>
                 <div id="lyrics-results" class="sources-list">
                     <!-- Results will be populated here -->
                 </div>
@@ -113,6 +334,7 @@
     <script>
         let currentSong = null;
         let currentArtist = null;
+        let currentResults = [];
 
         function redirectToLogin() {
             window.location.href = '/login';
@@ -146,6 +368,12 @@
                 return;
             }
 
+            // Show loading state
+            const updateButton = document.getElementById('updateButton');
+            const originalText = updateButton.innerHTML;
+            updateButton.innerHTML = '<span class="loading"></span> Updating...';
+            updateButton.disabled = true;
+
             try {
                 const response = await fetch(`/current-song?token=${token}&expires_at=${expiresAt}`);
                 const data = await response.json();
@@ -156,13 +384,30 @@
                         return;
                     }
                     document.getElementById('songTitle').textContent = data.error;
+                    document.getElementById('songTitle').className = 'error-message';
                     return;
                 }
 
                 currentSong = data.song;
                 currentArtist = data.artist;
+                currentResults = data.lyrics_sources || [];
                 document.getElementById('songTitle').textContent = data.song;
+                document.getElementById('songTitle').className = '';
                 document.getElementById('artistName').textContent = data.artist;
+
+                // Update the sources container header with cache indicator
+                const sourcesHeader = document.querySelector('.sources-container h3');
+                const cacheIndicator = sourcesHeader.querySelector('.cache-indicator');
+                if (cacheIndicator) {
+                    cacheIndicator.remove();
+                }
+                
+                if (data.is_cached) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'cache-indicator';
+                    indicator.innerHTML = '<i class="bi bi-lightning-charge-fill"></i>Cached';
+                    sourcesHeader.appendChild(indicator);
+                }
 
                 // Display results
                 const resultsDiv = document.getElementById('lyrics-results');
@@ -173,33 +418,47 @@
                         const card = document.createElement('div');
                         card.className = 'card result-card';
                         const isBookmarked = data.bookmarks[result.url] || false;
-                        // Extract domain name from URL
-                        const domain = new URL(result.url).hostname.replace('www.', '');
+                        // Extract domain name from URL safely
+                        let domain = '';
+                        try {
+                            domain = new URL(result.url).hostname.replace('www.', '');
+                        } catch (e) {
+                            domain = result.url.split('/')[2] || 'Unknown Source';
+                        }
                         card.innerHTML = `
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <a href="${result.url}" target="_blank" class="text-decoration-none">
-                                        ${domain}
+                                        <i class="bi bi-link-45deg me-2"></i>${domain}
                                     </a>
-                                    <button class="btn btn-outline-warning bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" 
-                                            onclick="toggleBookmark('${index}')">
-                                        <i class="bi ${isBookmarked ? 'bi-bookmark-fill' : 'bi-bookmark'}"></i>
+                                    <button class="btn bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" 
+                                            onclick="toggleBookmark(${index})">
+                                        <i class="bi ${isBookmarked ? 'bi-bookmark-heart-fill' : 'bi-bookmark-heart'}"></i>
                                     </button>
                                 </div>
                             </div>
                         `;
                         resultsDiv.appendChild(card);
+                        
+                        // Add fade-in animation to each card
+                        setTimeout(() => card.classList.add('fade-in'), index * 100);
                     });
                 } else {
-                    resultsDiv.innerHTML = '<p>No results found</p>';
+                    resultsDiv.innerHTML = '<div class="no-results"><i class="bi bi-music-note me-2"></i>No lyrics sources found for this song</div>';
                 }
             } catch (error) {
                 console.error('Error:', error);
+                document.getElementById('songTitle').textContent = 'Error loading song information';
+                document.getElementById('songTitle').className = 'error-message';
+            } finally {
+                // Restore button state
+                updateButton.innerHTML = originalText;
+                updateButton.disabled = false;
             }
         }
 
         async function toggleBookmark(index) {
-            if (!currentSong || !currentArtist) return;
+            if (!currentSong || !currentArtist || !currentResults[index]) return;
 
             try {
                 const response = await fetch('/toggle-bookmark', {
@@ -210,7 +469,7 @@
                     body: JSON.stringify({
                         song_name: currentSong,
                         artist_name: currentArtist,
-                        url: document.querySelectorAll('.result-card')[index].querySelector('a').href
+                        url: currentResults[index].url
                     })
                 });
 
@@ -220,8 +479,8 @@
                     const button = document.querySelectorAll('.bookmark-btn')[index];
                     button.classList.toggle('bookmarked');
                     const icon = button.querySelector('i');
-                    icon.classList.toggle('bi-bookmark');
-                    icon.classList.toggle('bi-bookmark-fill');
+                    icon.classList.toggle('bi-bookmark-heart');
+                    icon.classList.toggle('bi-bookmark-heart-fill');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -238,6 +497,5 @@
             document.getElementById('playerSection').style.display = 'none';
         }
     </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
 </body>
-</html> 
+</html>
