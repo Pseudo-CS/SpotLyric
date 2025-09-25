@@ -30,7 +30,7 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = "https://spotlyric.onrender.com/callback"
 
 # SerpAPI credentials
-SERPAPI_KEY = os.getenv("SERPAPI_KEY", "6b1c5ada495ea534107a4ac5807851e770c104235fa4e198d8d7f5beeaebeb31")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 
 # Initialize Spotify client
 sp_oauth = SpotifyOAuth(
